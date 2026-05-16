@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Summit Seeker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0d0d0f;
+    font-family: 'Space Mono', monospace;
+    color: #e8dcc8;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  #game-wrap {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #mountain-canvas {
+    position: absolute;
+    inset: 0;
+  }
+
+  #ui-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 16px 20px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .stat-box {
+    background: rgba(13,13,15,0.85);
+    border: 1px solid rgba(232,220,200,0.2);
+    padding: 8px 14px;
+    border-radius: 4px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #8a7a62;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .stat-value {
+    font-size: 18px;
+    font-family: 'Bebas Neue', cursive;
+    letter-spacing: 1px;
+    color: #e8dcc8;
+  }
+
+  #grip-bar-wrap {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 280px;
+    z-index: 10;
+  }
+
+  #grip-label {
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: #8a7a62;
+    margin-bottom: 6px;
+  }
+
+  #grip-track {
+    height: 8px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  #grip-fill {
+    height: 100%;
+    width: 100%;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+    background: #4ade80;
+  }
+
+  #handhold-prompt {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: rgba(232,220,200,0.5);
+    text-align: center;
+    z-index: 10;
+    white-space: nowrap;
+  }
+
+  #screen-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    background: rgba(13,13,15,0.92);
+  }
+
+  #screen-overlay h1 {
+    font-family: 'Bebas Neue', cursive;
+    font-size: 64px;
+    letter-spacing: 6px;
+    color: #e8dcc8;
+    margin-bottom: 8px;
+  }
+
+  #screen-overlay p {
+    font-size: 12px;
+    color: #8a7a62;
+    letter-spacing: 2px;
+    margin-bottom: 40px;
+    text-align: center;
+    max-width: 320px;
+    line-height: 1.8;
+    white-space: pre-line;
+  }
+
+  #start-btn {
+    background: transparent;
+    border: 1px solid #e8dcc8;
+    color: #e8dcc8;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 3px;
+    padding: 14px 40px;
+    cursor: pointer;
+    text-transform: uppercase;
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+
+  #start-btn:hover {
+    background: #e8dcc8;
+    color: #0d0d0f;
+  }
+
+  .pulse-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.6);
+    animation: pulseOut 1s ease-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes pulseOut {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(2); opacity: 0; }
+  }
+
+  #altitude-bar {
+    position: absolute;
+    right: 20px;
+    top: 70px;
+    bottom: 80px;
+    width: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    z-index: 10;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  #altitude-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, #4ade80, #60a5fa);
+    border-radius: 3px;
+    transition: height 0.4s ease;
+  }
+
+  #altitude-icon {
+    position: absolute;
+    right: 30px;
+    top: 66px;
+    font-size: 10px;
+    color: #8a7a62;
+    letter-spacing: 1px;
+  }
+
+  #fall-flash {
+    position: absolute;
+    inset: 0;
+    background: rgba(220, 50, 50, 0.4);
+    z-index: 15;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.1s;
+  }
+</style>
+</head>
+<body>
+<div id="game-wrap">
+  <canvas id="mountain-canvas"></canvas>
+
+  <div id="ui-overlay">
+    <div class="stat-box">
+      <div class="stat-label">Altitude</div>
+      <div class="stat-value" id="altitude-display">0 m</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Falls</div>
+      <div class="stat-value" id="falls-display">0</div>
+    </div>
+  </div>
+
+  <div id="altitude-icon">▲ SUMMIT</div>
+  <div id="altitude-bar"><div id="altitude-fill" style="height:0%"></div></div>
+
+  <div id="grip-bar-wrap">
+    <div id="grip-label">⬡ GRIP STRENGTH</div>
+    <div id="grip-track"><div id="grip-fill"></div></div>
+  </div>
+
+  <div id="handhold-prompt">CLICK THE NEXT GLOWING HOLD</div>
+
+  <div id="fall-flash"></div>
+
+  <div id="screen-overlay">
+    <h1 id="overlay-title">SUMMIT SEEKER</h1>
+    <p id="overlay-desc">Click each glowing handhold before your grip fails.
+Move quickly — hesitation means falling.</p>
+    <button id="start-btn" onclick="startGame()">BEGIN ASCENT</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('mountain-canvas');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+let gameState = 'menu';
+let handholds = [];
+let currentHold = 0;
+let gripTimer = 0;
+let GRIP_MAX = 3200;
+let falls = 0;
+let particles = [];
+let screenShake = 0;
+let climberX = 0;
+let climberY = 0;
+
+const HOLD_COUNT = 14;
+const HOLD_RADIUS = 18;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  if (gameState === 'playing') drawScene();
+  else drawMountainBg();
+}
+
+window.addEventListener('resize', resize);
+
+function drawMountainBg() {
+  ctx.clearRect(0, 0, W, H);
+  drawMountain();
+  drawStars();
+}
+
+function drawStars() {
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  for (let i = 0; i < 120; i++) {
+    let sx = (i * 137.5) % W;
+    let sy = (i * 97.3) % (H * 0.6);
+    let r = i % 11 === 0 ? 1.5 : 0.7;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawMountain() {
+  let peakX = W / 2;
+  let peakY = H * 0.08;
+
+  const grad = ctx.createLinearGradient(0, peakY, 0, H);
+  grad.addColorStop(0, '#1a1c28');
+  grad.addColorStop(0.5, '#141620');
+  grad.addColorStop(1, '#0d0d0f');
+
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  ctx.lineTo(W * 0.05, H * 0.75);
+  ctx.lineTo(W * 0.18, H * 0.55);
+  ctx.lineTo(W * 0.3, H * 0.42);
+  ctx.lineTo(peakX - W * 0.08, H * 0.22);
+  ctx.lineTo(peakX, peakY);
+  ctx.lineTo(peakX + W * 0.08, H * 0.22);
+  ctx.lineTo(W * 0.7, H * 0.42);
+  ctx.lineTo(W * 0.82, H * 0.55);
+  ctx.lineTo(W * 0.95, H * 0.75);
+  ctx.lineTo(W, H);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(232,220,200,0.15)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Snow cap
+  ctx.beginPath();
+  ctx.moveTo(peakX, peakY);
+  ctx.lineTo(peakX - W * 0.05, H * 0.18);
+  ctx.lineTo(peakX + W * 0.05, H * 0.18);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(232,220,200,0.12)';
+  ctx.fill();
+
+  // Crevice lines
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 8; i++) {
+    let bx = peakX + (i % 2 === 0 ? -1 : 1) * (20 + i * 28);
+    let by = H * 0.15 + i * H * 0.06;
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.lineTo(bx + (i % 2 === 0 ? -30 : 25), by + 40);
+    ctx.stroke();
+  }
+}
+
+function generateHolds() {
+  handholds = [];
+  let peakX = W / 2;
+  let peakY = H * 0.1;
+  let baseY = H * 0.85;
+
+  for (let i = 0; i < HOLD_COUNT; i++) {
+    let t = i / (HOLD_COUNT - 1);
+    let cy = baseY - t * (baseY - peakY);
+    let spreadX = (1 - t) * W * 0.22 + 30;
+    let side = (i % 2 === 0 ? 1 : -1) * (0.3 + Math.sin(i * 1.7) * 0.7);
+    let cx = peakX + side * spreadX;
+    cx = Math.max(60, Math.min(W - 60, cx));
+    handholds.push({ x: cx, y: cy, hit: false });
+  }
+
+  climberX = handholds[0].x;
+  climberY = handholds[0].y;
+}
+
+function drawHolds() {
+  handholds.forEach((h, i) => {
+    if (h.hit) {
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, HOLD_RADIUS * 0.6, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(74,222,128,0.15)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(74,222,128,0.4)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      return;
+    }
+
+    if (i === currentHold) {
+      let glow = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, HOLD_RADIUS * 2.5);
+      glow.addColorStop(0, 'rgba(96,165,250,0.25)');
+      glow.addColorStop(1, 'rgba(96,165,250,0)');
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, HOLD_RADIUS * 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = glow;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, HOLD_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = '#1e40af';
+      ctx.fill();
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(h.x - 4, h.y - 3, 5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(147,197,253,0.3)';
+      ctx.fill();
+    } else if (i > currentHold) {
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, HOLD_RADIUS * 0.8, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(60,60,70,0.8)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(232,220,200,0.15)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  });
+}
+
+function drawClimber(x, y) {
+  ctx.lineCap = 'round';
+
+  ctx.beginPath();
+  ctx.arc(x, y - 12, 8, 0, Math.PI * 2);
+  ctx.fillStyle = '#e8dcc8';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(x, y - 4);
+  ctx.lineTo(x, y + 10);
+  ctx.strokeStyle = '#c8b89a';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x, y - 2);
+  ctx.lineTo(x - 12, y - 14);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x, y - 2);
+  ctx.lineTo(x + 12, y - 14);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x, y + 10);
+  ctx.lineTo(x - 8, y + 20);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x, y + 10);
+  ctx.lineTo(x + 8, y + 20);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(x, y - 14, 8, Math.PI, 0);
+  ctx.fillStyle = '#ef4444';
+  ctx.fill();
+}
+
+function drawParticles() {
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${p.color}, ${p.life / p.maxLife})`;
+    ctx.fill();
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15;
+    p.life--;
+  });
+}
+
+function spawnDustParticles(x, y, color) {
+  for (let i = 0; i < 14; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 5,
+      vy: (Math.random() - 0.8) * 5,
+      r: Math.random() * 3 + 1,
+      color,
+      life: 30 + Math.random() * 20,
+      maxLife: 50
+    });
+  }
+}
+
+function drawScene() {
+  ctx.save();
+  if (screenShake > 0) {
+    ctx.translate(
+      (Math.random() - 0.5) * screenShake,
+      (Math.random() - 0.5) * screenShake
+    );
+    screenShake *= 0.85;
+    if (screenShake < 0.5) screenShake = 0;
+  }
+
+  ctx.clearRect(-20, -20, W + 40, H + 40);
+  drawMountain();
+
+  if (currentHold > 1) {
+    ctx.beginPath();
+    ctx.moveTo(climberX, climberY - 4);
+    let anchor = handholds[currentHold - 1];
+    ctx.lineTo(anchor.x, anchor.y);
+    ctx.strokeStyle = 'rgba(232,220,200,0.25)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  drawHolds();
+  drawParticles();
+  drawClimber(Math.round(climberX), Math.round(climberY));
+  ctx.restore();
+}
+
+function updateGripBar() {
+  let pct = gripTimer / GRIP_MAX;
+  let fill = document.getElementById('grip-fill');
+  fill.style.width = (pct * 100) + '%';
+  if (pct > 0.65) fill.style.background = '#ef4444';
+  else if (pct > 0.35) fill.style.background = '#f59e0b';
+  else fill.style.background = '#4ade80';
+}
+
+function updateAltitude() {
+  let baseY = H * 0.85;
+  let peakY = H * 0.1;
+  let pct = Math.max(0, Math.min(1, (baseY - climberY) / (baseY - peakY)));
+  document.getElementById('altitude-fill').style.height = (pct * 100) + '%';
+  document.getElementById('altitude-display').textContent = Math.round(pct * 4810) + ' m';
+}
+
+let animFrame;
+let lastTime = 0;
+
+function gameLoop(ts) {
+  if (gameState !== 'playing') return;
+  animFrame = requestAnimationFrame(gameLoop);
+  gripTimer += ts - lastTime;
+  lastTime = ts;
+
+  updateGripBar();
+
+  if (gripTimer >= GRIP_MAX) {
+    triggerFall();
+    return;
+  }
+
+  drawScene();
+}
+
+function triggerFall() {
+  falls++;
+  document.getElementById('falls-display').textContent = falls;
+  screenShake = 12;
+  spawnDustParticles(climberX, climberY, '220,80,80');
+
+  let flash = document.getElementById('fall-flash');
+  flash.style.opacity = '1';
+  setTimeout(() => { flash.style.opacity = '0'; }, 200);
+
+  gripTimer = 0;
+  currentHold = Math.max(1, currentHold - (Math.floor(Math.random() * 3) + 1));
+  GRIP_MAX = Math.max(1800, GRIP_MAX - 100);
+
+  for (let i = currentHold; i < handholds.length; i++) handholds[i].hit = false;
+  handholds[currentHold - 1].hit = true;
+
+  climberX = handholds[currentHold - 1].x;
+  climberY = handholds[currentHold - 1].y;
+  updateAltitude();
+}
+
+function handleClick(e) {
+  if (gameState !== 'playing') return;
+  let rect = canvas.getBoundingClientRect();
+  let mx = e.clientX - rect.left;
+  let my = e.clientY - rect.top;
+
+  let target = handholds[currentHold];
+  if (!target) return;
+
+  let dist = Math.hypot(mx - target.x, my - target.y);
+
+  if (dist < HOLD_RADIUS + 16) {
+    target.hit = true;
+    spawnDustParticles(target.x, target.y, '96,165,250');
+    gripTimer = 0;
+
+    let startX = climberX, startY = climberY;
+    let endX = target.x, endY = target.y;
+    let step = 0, steps = 12;
+    let mv = setInterval(() => {
+      step++;
+      climberX = startX + (endX - startX) * (step / steps);
+      climberY = startY + (endY - startY) * (step / steps);
+      if (step >= steps) { clearInterval(mv); climberX = endX; climberY = endY; }
+    }, 16);
+
+    addPulseRing(target.x, target.y);
+    currentHold++;
+    updateAltitude();
+
+    if (currentHold >= HOLD_COUNT) {
+      setTimeout(showSummit, 500);
+    }
+  } else {
+    gripTimer = Math.min(GRIP_MAX, gripTimer + 300);
+    spawnDustParticles(mx, my, '100,100,120');
+  }
+}
+
+function addPulseRing(x, y) {
+  let ring = document.createElement('div');
+  ring.className = 'pulse-ring';
+  ring.style.cssText = `left:${x - 18}px;top:${y - 18}px;width:36px;height:36px;`;
+  document.getElementById('game-wrap').appendChild(ring);
+  setTimeout(() => ring.remove(), 1000);
+}
+
+function startGame() {
+  falls = 0;
+  gripTimer = 0;
+  GRIP_MAX = 3200;
+  currentHold = 0;
+  particles = [];
+  screenShake = 0;
+  document.getElementById('falls-display').textContent = '0';
+  document.getElementById('altitude-display').textContent = '0 m';
+  document.getElementById('altitude-fill').style.height = '0%';
+  document.getElementById('screen-overlay').style.display = 'none';
+  gameState = 'playing';
+
+  resize();
+  generateHolds();
+  handholds[0].hit = true;
+  currentHold = 1;
+  climberX = handholds[0].x;
+  climberY = handholds[0].y;
+
+  lastTime = performance.now();
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+function showSummit() {
+  gameState = 'over';
+  cancelAnimationFrame(animFrame);
+  let overlay = document.getElementById('screen-overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('overlay-title').textContent = 'SUMMIT!';
+  document.getElementById('overlay-desc').textContent =
+    `You reached the top with ${falls} fall${falls !== 1 ? 's' : ''}.\nThe mountain bows to no one — until now.`;
+  document.getElementById('start-btn').textContent = 'CLIMB AGAIN';
+}
+
+canvas.addEventListener('click', handleClick);
+
+window.addEventListener('load', () => {
+  resize();
+  drawMountainBg();
+});
+</script>
+</body>
+</html>

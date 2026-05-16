@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alpine Ascent</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #0a0e1a;
+  font-family: 'Crimson Text', serif;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+  user-select: none;
+}
+
+#game-wrap {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+}
+
+canvas { display: block; position: absolute; inset: 0; }
+
+#hud {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 14px 18px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.hud-panel {
+  background: rgba(10,14,26,0.78);
+  border: 1px solid rgba(180,210,255,0.18);
+  border-radius: 3px;
+  padding: 7px 14px;
+}
+
+.hud-label {
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: rgba(180,210,255,0.5);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.hud-value {
+  font-family: 'Cinzel', serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #c8deff;
+  letter-spacing: 1px;
+}
+
+#timer-val { color: #e0f0ff; }
+#timer-val.urgent { color: #ff6b6b; animation: urgentPulse 0.5s ease-in-out infinite alternate; }
+
+@keyframes urgentPulse { from { opacity: 1; } to { opacity: 0.5; } }
+
+#blizzard-bar-wrap {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 260px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+#blizzard-label {
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: rgba(180,210,255,0.5);
+  text-align: center;
+  margin-bottom: 5px;
+}
+
+#blizzard-track {
+  height: 6px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 3px;
+  border: 1px solid rgba(180,210,255,0.15);
+  overflow: hidden;
+}
+
+#blizzard-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  background: #60a5fa;
+  transition: background 0.3s;
+}
+
+#shelter-indicator {
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: #4ade80;
+  text-align: center;
+  margin-top: 5px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#controls-hint {
+  position: absolute;
+  bottom: 18px;
+  right: 18px;
+  pointer-events: none;
+  z-index: 10;
+  text-align: right;
+}
+
+#controls-hint span {
+  display: block;
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: rgba(180,210,255,0.35);
+  line-height: 1.8;
+}
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  background: rgba(10,14,26,0.93);
+}
+
+#overlay h1 {
+  font-family: 'Cinzel', serif;
+  font-size: 52px;
+  font-weight: 900;
+  letter-spacing: 8px;
+  color: #c8deff;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+#overlay .sub {
+  font-family: 'Crimson Text', serif;
+  font-style: italic;
+  font-size: 16px;
+  color: rgba(180,210,255,0.55);
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+#overlay .desc {
+  font-size: 14px;
+  color: rgba(180,210,255,0.45);
+  text-align: center;
+  max-width: 360px;
+  line-height: 2;
+  margin-bottom: 36px;
+  letter-spacing: 1px;
+}
+
+#overlay-btn {
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  letter-spacing: 4px;
+  padding: 13px 44px;
+  background: transparent;
+  border: 1px solid rgba(180,210,255,0.5);
+  color: #c8deff;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.2s;
+  text-transform: uppercase;
+}
+
+#overlay-btn:hover {
+  background: rgba(180,210,255,0.12);
+  border-color: #c8deff;
+}
+
+#blizzard-flash {
+  position: absolute;
+  inset: 0;
+  background: rgba(200, 230, 255, 0.18);
+  z-index: 20;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+</style>
+</head>
+<body>
+<div id="game-wrap">
+  <canvas id="bg-canvas"></canvas>
+  <canvas id="game-canvas"></canvas>
+
+  <div id="hud">
+    <div class="hud-panel">
+      <div class="hud-label">Time Remaining</div>
+      <div class="hud-value" id="timer-val">90s</div>
+    </div>
+    <div class="hud-panel">
+      <div class="hud-label">Distance</div>
+      <div class="hud-value" id="dist-val">— m</div>
+    </div>
+  </div>
+
+  <div id="blizzard-bar-wrap">
+    <div id="blizzard-label">◈ STORM INTENSITY</div>
+    <div id="blizzard-track"><div id="blizzard-fill"></div></div>
+    <div id="shelter-indicator">▣ SHELTERED</div>
+  </div>
+
+  <div id="controls-hint">
+    <span>← → MOVE</span>
+    <span>↑ / SPACE JUMP</span>
+    <span>↓ DUCK</span>
+  </div>
+
+  <div id="blizzard-flash"></div>
+
+  <div id="overlay">
+    <h1 id="overlay-title">ALPINE ASCENT</h1>
+    <div class="sub" id="overlay-sub">The mountain does not forgive hesitation.</div>
+    <div class="desc" id="overlay-desc">
+      Reach the cabin before time runs out.<br>
+      When the blizzard strikes, duck behind rocks<br>
+      or be swept back down the mountain.
+    </div>
+    <button id="overlay-btn" onclick="startGame()">BEGIN ASCENT</button>
+  </div>
+</div>
+
+<script>
+const bgCanvas  = document.getElementById('bg-canvas');
+const bgCtx     = bgCanvas.getContext('2d');
+const gc        = document.getElementById('game-canvas');
+const ctx       = gc.getContext('2d');
+
+let W, H;
+
+function resize() {
+  W = bgCanvas.width  = gc.width  = window.innerWidth;
+  H = bgCanvas.height = gc.height = window.innerHeight;
+  GROUND_Y = H - 90;
+  if (state !== 'playing') drawBackground();
+}
+window.addEventListener('resize', resize);
+
+const GRAVITY       = 0.55;
+const JUMP_POWER    = -13;
+const MOVE_SPEED    = 4.5;
+const TOTAL_TIME    = 90;
+const LEVEL_WIDTH   = 4200;
+
+let GROUND_Y = 0;
+
+let state = 'menu';
+let timeLeft, blizzardTimer, blizzardActive, blizzardIntensity;
+let blizzardCooldown, nextBlizzardIn;
+let cameraX;
+let snowflakes = [];
+let windParticles = [];
+let particles = [];
+
+const player = {
+  x: 80, y: 0,
+  w: 22, h: 36,
+  vx: 0, vy: 0,
+  onGround: false,
+  ducking: false,
+  sheltered: false,
+  duckTimer: 0,
+  walkFrame: 0,
+  walkTick: 0,
+  facing: 1,
+};
+
+let platforms = [];
+let rocks = [];
+let cabin = {};
+
+function buildLevel() {
+  platforms = [];
+  rocks = [];
+
+  platforms.push({ x: 0, y: 0, w: LEVEL_WIDTH, h: 30, isGround: true });
+
+  const ledges = [
+    { x: 300,  w: 180 }, { x: 600,  w: 120 }, { x: 820,  w: 200 },
+    { x: 1100, w: 160 }, { x: 1350, w: 130 }, { x: 1600, w: 200 },
+    { x: 1900, w: 140 }, { x: 2150, w: 180 }, { x: 2450, w: 160 },
+    { x: 2700, w: 200 }, { x: 2980, w: 150 }, { x: 3200, w: 180 },
+    { x: 3450, w: 160 }, { x: 3700, w: 200 },
+  ];
+  ledges.forEach((l, i) => {
+    let rise = 40 + (i % 4) * 20;
+    platforms.push({ x: l.x, y: GROUND_Y - rise, w: l.w, h: 16 });
+  });
+
+  const rockDefs = [
+    { x: 180,  w: 60,  h: 44 }, { x: 500,  w: 80,  h: 52 },
+    { x: 750,  w: 55,  h: 40 }, { x: 1000, w: 70,  h: 48 },
+    { x: 1250, w: 65,  h: 44 }, { x: 1480, w: 80,  h: 56 },
+    { x: 1750, w: 60,  h: 42 }, { x: 2000, w: 75,  h: 50 },
+    { x: 2300, w: 70,  h: 46 }, { x: 2600, w: 80,  h: 54 },
+    { x: 2850, w: 65,  h: 44 }, { x: 3100, w: 75,  h: 50 },
+    { x: 3350, w: 70,  h: 48 }, { x: 3600, w: 80,  h: 52 },
+    { x: 3850, w: 60,  h: 42 },
+  ];
+  rockDefs.forEach(r => {
+    rocks.push({ x: r.x, y: GROUND_Y - r.h, w: r.w, h: r.h });
+  });
+
+  cabin = { x: LEVEL_WIDTH - 200, y: GROUND_Y - 90, w: 110, h: 90 };
+}
+
+function initSnow() {
+  snowflakes = [];
+  for (let i = 0; i < 180; i++) {
+    snowflakes.push(makeFlake(true));
+  }
+}
+
+function makeFlake(init) {
+  return {
+    x:    init ? Math.random() * W : W + 10,
+    y:    Math.random() * H,
+    r:    Math.random() * 2.2 + 0.4,
+    spd:  Math.random() * 1.2 + 0.4,
+    drift: Math.random() * 0.6 - 0.3,
+    alpha: Math.random() * 0.6 + 0.2,
+  };
+}
+
+function spawnWindParticles() {
+  for (let i = 0; i < 6; i++) {
+    windParticles.push({
+      x: W + 20,
+      y: Math.random() * H,
+      vx: -(14 + Math.random() * 10),
+      vy: (Math.random() - 0.5) * 3,
+      len: 30 + Math.random() * 40,
+      alpha: 0.4 + Math.random() * 0.4,
+      life: 1,
+    });
+  }
+}
+
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+function rectOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function drawBackground() {
+  let sky = bgCtx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0,   '#060c1c');
+  sky.addColorStop(0.5, '#0d1a30');
+  sky.addColorStop(1,   '#1a2a40');
+  bgCtx.fillStyle = sky;
+  bgCtx.fillRect(0, 0, W, H);
+
+  bgCtx.fillStyle = 'rgba(20,34,58,0.9)';
+  [[0.05,0.55,0.25,0.75],[0.2,0.48,0.38,0.72],[0.45,0.52,0.65,0.75],
+   [0.6,0.45,0.78,0.72],[0.75,0.5,0.92,0.75],[0.88,0.54,1.02,0.75]].forEach(([x1,py,x2,by]) => {
+    bgCtx.beginPath();
+    bgCtx.moveTo(W*x1, H*by);
+    bgCtx.lineTo(W*((x1+x2)/2), H*py);
+    bgCtx.lineTo(W*x2, H*by);
+    bgCtx.fill();
+  });
+
+  bgCtx.beginPath();
+  bgCtx.arc(W*0.82, H*0.12, 28, 0, Math.PI*2);
+  bgCtx.fillStyle = 'rgba(220,235,255,0.9)';
+  bgCtx.fill();
+  bgCtx.beginPath();
+  bgCtx.arc(W*0.82+10, H*0.12-4, 24, 0, Math.PI*2);
+  bgCtx.fillStyle = 'rgba(10,18,35,0.85)';
+  bgCtx.fill();
+
+  for (let i = 0; i < 90; i++) {
+    let sx = (i * 173.1 + 50) % W;
+    let sy = (i * 97.7) % (H * 0.58);
+    bgCtx.beginPath();
+    bgCtx.arc(sx, sy, i%9===0?1.4:0.6, 0, Math.PI*2);
+    bgCtx.fillStyle = `rgba(200,220,255,${0.3+((i%5)*0.12)})`;
+    bgCtx.fill();
+  }
+}
+
+function drawLevel(cx) {
+  ctx.fillStyle = '#1a2e48';
+  ctx.fillRect(0, GROUND_Y + 2, W, H - GROUND_Y);
+
+  ctx.fillStyle = '#d0e8ff';
+  ctx.fillRect(0, GROUND_Y - 4, W, 8);
+  for (let i = 0; i < 20; i++) {
+    let bx = ((i * 240 - cx) % (W + 240) + (W+240)) % (W+240) - 120;
+    ctx.beginPath();
+    ctx.ellipse(bx, GROUND_Y, 60, 10, 0, Math.PI, 0);
+    ctx.fillStyle = '#e8f4ff';
+    ctx.fill();
+  }
+
+  platforms.forEach(p => {
+    if (p.isGround) return;
+    let px = p.x - cx;
+    if (px + p.w < 0 || px > W) return;
+    ctx.fillStyle = '#243c5c';
+    ctx.fillRect(px, p.y, p.w, p.h);
+    ctx.fillStyle = '#d8eeff';
+    ctx.fillRect(px, p.y, p.w, 5);
+    for (let i = 0; i < Math.floor(p.w/14); i++) {
+      let ix = px + 7 + i * 14;
+      ctx.beginPath();
+      ctx.moveTo(ix - 3, p.y + p.h);
+      ctx.lineTo(ix + 3, p.y + p.h);
+      ctx.lineTo(ix, p.y + p.h + 8 + (i%3)*4);
+      ctx.fillStyle = 'rgba(180,220,255,0.7)';
+      ctx.fill();
+    }
+  });
+
+  rocks.forEach(r => {
+    let rx = r.x - cx;
+    if (rx + r.w < 0 || rx > W) return;
+    ctx.fillStyle = '#2a3f58';
+    ctx.beginPath();
+    ctx.ellipse(rx + r.w/2, r.y + r.h * 0.6, r.w/2, r.h * 0.6, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#3a5270';
+    ctx.beginPath();
+    ctx.ellipse(rx + r.w*0.35, r.y + r.h*0.3, r.w*0.25, r.h*0.2, -0.3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#ddeeff';
+    ctx.beginPath();
+    ctx.ellipse(rx + r.w/2, r.y + 4, r.w * 0.55, 10, 0, Math.PI, 0);
+    ctx.fill();
+    if (blizzardActive) {
+      ctx.fillStyle = 'rgba(100,180,255,0.06)';
+      ctx.fillRect(rx - r.w, r.y, r.w, r.h + 10);
+    }
+  });
+
+  let cabX = cabin.x - cx;
+  if (cabX + cabin.w > -60 && cabX < W + 60) {
+    drawCabin(cabX, cabin.y, cabin.w, cabin.h);
+  }
+}
+
+function drawCabin(x, y, w, h) {
+  ctx.fillStyle = '#4a2e18';
+  ctx.fillRect(x, y + h*0.3, w, h*0.7);
+  ctx.fillStyle = '#2a1a0a';
+  ctx.beginPath();
+  ctx.moveTo(x - 10, y + h*0.32);
+  ctx.lineTo(x + w/2, y);
+  ctx.lineTo(x + w + 10, y + h*0.32);
+  ctx.fill();
+  ctx.fillStyle = '#ddeeff';
+  ctx.beginPath();
+  ctx.moveTo(x - 4, y + h*0.34);
+  ctx.lineTo(x + w/2, y + 3);
+  ctx.lineTo(x + w + 4, y + h*0.34);
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = '#ddeeff';
+  ctx.stroke();
+  ctx.fillStyle = '#2a1000';
+  ctx.fillRect(x + w/2 - 10, y + h*0.62, 20, h*0.38);
+  ctx.fillStyle = '#ffcc66';
+  ctx.fillRect(x + 10, y + h*0.42, 22, 18);
+  ctx.fillStyle = 'rgba(255,200,80,0.4)';
+  ctx.fillRect(x + 10, y + h*0.42, 22, 18);
+  let glow = ctx.createRadialGradient(x+21, y+h*0.51, 0, x+21, y+h*0.51, 45);
+  glow.addColorStop(0, 'rgba(255,180,60,0.25)');
+  glow.addColorStop(1, 'rgba(255,180,60,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(x-20, y, w+40, h+20);
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.arc(x + w*0.72 + Math.sin(Date.now()/600+i)*4, y - 12 - i*14, 7+i*3, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(180,180,200,${0.3-i*0.08})`;
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(200,230,255,0.7)';
+  ctx.font = 'bold 11px Cinzel, serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('REFUGE', x + w/2, y - 22);
+}
+
+function drawPlayer(cx) {
+  let px = player.x - cx;
+  let py = player.y;
+  let isDucking = player.ducking;
+  let h = isDucking ? player.h * 0.55 : player.h;
+  let bodyY = py + (player.h - h);
+
+  ctx.save();
+  ctx.translate(px + player.w/2, bodyY + h/2);
+  if (player.facing < 0) ctx.scale(-1, 1);
+
+  ctx.fillStyle = '#1a4a7a';
+  ctx.beginPath();
+  ctx.roundRect(-player.w/2 + 2, -h/2 + (isDucking?0:8), player.w - 4, h - (isDucking?4:14), 4);
+  ctx.fill();
+
+  if (!isDucking) {
+    ctx.fillStyle = '#e0c8a0';
+    ctx.beginPath();
+    ctx.ellipse(0, -h/2 + 4, 9, 10, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#2a6aaa';
+    ctx.beginPath();
+    ctx.arc(0, -h/2 + 2, 10, Math.PI*0.9, Math.PI*2.1);
+    ctx.fill();
+    ctx.fillStyle = '#cc3333';
+    ctx.fillRect(-9, -h/2 + 11, 18, 5);
+
+    let kick = player.onGround ? Math.sin(player.walkFrame * 0.25) * 6 : 0;
+    ctx.fillStyle = '#0e2a4a';
+    ctx.fillRect(-7, h/2 - 14, 6, 14 + kick);
+    ctx.fillRect(1,  h/2 - 14, 6, 14 - kick);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(-8, h/2 - 1, 8, 5);
+    ctx.fillRect(1,  h/2 - 1, 8, 5);
+
+    ctx.fillStyle = '#2a6aaa';
+    ctx.fillRect(player.w/2 - 6, -h/2+14, 5, 14);
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillRect(player.w/2 - 2, -h/2 + 10, 2, 20);
+    ctx.fillRect(player.w/2 - 7, -h/2 + 10, 10, 3);
+
+    ctx.fillStyle = '#1a3a5a';
+    ctx.fillRect(-player.w/2 - 6, -h/2+10, 8, 18);
+  } else {
+    ctx.fillStyle = '#e0c8a0';
+    ctx.beginPath();
+    ctx.ellipse(3, -h/2 + 4, 8, 7, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#2a6aaa';
+    ctx.beginPath();
+    ctx.arc(3, -h/2 + 2, 9, Math.PI*0.8, Math.PI*2.2);
+    ctx.fill();
+    ctx.fillStyle = '#cc3333';
+    ctx.fillRect(-7, -h/2+9, 16, 5);
+  }
+
+  ctx.restore();
+
+  if (player.sheltered && blizzardActive) {
+    ctx.beginPath();
+    ctx.ellipse(px + player.w/2, py + player.h/2, 20, 28, 0, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(100,200,255,0.08)';
+    ctx.fill();
+  }
+}
+
+function drawSnow(cx) {
+  snowflakes.forEach(f => {
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, f.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(220,240,255,${f.alpha})`;
+    ctx.fill();
+  });
+
+  if (blizzardActive) {
+    windParticles.forEach(p => {
+      ctx.beginPath();
+      ctx.moveTo(p.x + p.len, p.y);
+      ctx.lineTo(p.x, p.y + p.vy*2);
+      ctx.strokeStyle = `rgba(200,230,255,${p.alpha * p.life})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+  }
+}
+
+function updateHUD() {
+  let tv = document.getElementById('timer-val');
+  tv.textContent = Math.ceil(timeLeft) + 's';
+  tv.className = timeLeft < 20 ? 'hud-value urgent' : 'hud-value';
+
+  let dist = Math.max(0, Math.round(cabin.x - player.x));
+  document.getElementById('dist-val').textContent = dist + ' m';
+
+  let pct = blizzardActive ? (blizzardTimer / 5) : (1 - blizzardCooldown / nextBlizzardIn);
+  let fill = document.getElementById('blizzard-fill');
+  fill.style.width = (Math.max(0, Math.min(1, pct)) * 100) + '%';
+  fill.style.background = blizzardActive ? '#93c5fd' : '#3b5bdb';
+
+  let si = document.getElementById('shelter-indicator');
+  si.style.opacity = (player.sheltered && blizzardActive) ? '1' : '0';
+}
+
+function spawnImpactParticles(x, y) {
+  for (let i = 0; i < 10; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random()-0.5)*6,
+      vy: Math.random()*-4-1,
+      life: 30, maxLife: 30,
+      r: Math.random()*3+1,
+      color: '200,230,255',
+    });
+  }
+}
+
+let lastTs = 0;
+let animId;
+
+function gameLoop(ts) {
+  if (state !== 'playing') return;
+  animId = requestAnimationFrame(gameLoop);
+  let dt = Math.min((ts - lastTs) / 1000, 0.05);
+  lastTs = ts;
+
+  update(dt);
+  render();
+}
+
+function update(dt) {
+  timeLeft -= dt;
+  if (timeLeft <= 0) return endGame('lose', 'time');
+
+  let moveX = 0;
+  if (keys['ArrowLeft']  || keys['KeyA']) { moveX = -1; player.facing = -1; }
+  if (keys['ArrowRight'] || keys['KeyD']) { moveX =  1; player.facing =  1; }
+
+  player.ducking = keys['ArrowDown'] || keys['KeyS'];
+
+  if (!player.ducking) {
+    player.vx = moveX * MOVE_SPEED;
+  } else {
+    player.vx *= 0.7;
+  }
+
+  if ((keys['ArrowUp'] || keys['Space'] || keys['KeyW']) && player.onGround && !player.ducking) {
+    player.vy = JUMP_POWER;
+    player.onGround = false;
+  }
+
+  if (player.onGround && Math.abs(player.vx) > 0.5) {
+    player.walkTick++;
+    if (player.walkTick > 4) { player.walkFrame++; player.walkTick = 0; }
+  }
+
+  if (blizzardActive) {
+    blizzardTimer -= dt;
+    blizzardIntensity = Math.min(1, blizzardIntensity + dt * 0.5);
+
+    spawnWindParticles();
+
+    player.sheltered = false;
+    if (player.ducking) {
+      rocks.forEach(r => {
+        let px = player.x + player.w/2;
+        let py = player.y + player.h;
+        if (px > r.x - 20 && px < r.x + r.w + 10 && py > r.y - 10 && py <= GROUND_Y + 5) {
+          player.sheltered = true;
+        }
+      });
+    }
+
+    if (!player.sheltered) {
+      let push = blizzardIntensity * 180 * dt;
+      player.x -= push;
+      if (player.x < cameraX - W * 0.3) player.x = cameraX - W * 0.3;
+    }
+
+    if (blizzardTimer <= 0) {
+      blizzardActive = false;
+      blizzardIntensity = 0;
+      blizzardCooldown = 0;
+      nextBlizzardIn = 8 + Math.random() * 6;
+      document.getElementById('blizzard-flash').style.opacity = '0';
+    } else {
+      document.getElementById('blizzard-flash').style.opacity =
+        (Math.sin(lastTs / 120) * 0.05 + 0.05).toString();
+    }
+  } else {
+    blizzardIntensity *= 0.95;
+    blizzardCooldown += dt;
+    if (blizzardCooldown >= nextBlizzardIn) {
+      blizzardActive = true;
+      blizzardTimer = 4 + Math.random() * 3;
+    }
+  }
+
+  player.vy += GRAVITY;
+  player.x = Math.max(0, player.x);
+  player.y += player.vy;
+  player.onGround = false;
+
+  let ph = player.ducking ? player.h * 0.55 : player.h;
+  let pRect = { x: player.x, y: player.y + (player.h - ph), w: player.w, h: ph };
+
+  if (pRect.y + pRect.h >= GROUND_Y) {
+    player.y = GROUND_Y - player.h;
+    player.vy = 0;
+    player.onGround = true;
+  }
+
+  platforms.forEach(p => {
+    if (p.isGround) return;
+    let pr = { x: player.x, y: player.y + (player.h - ph), w: player.w, h: ph };
+    if (rectOverlap(pr, p) && player.vy >= 0 && pr.y + pr.h - player.vy <= p.y + 4) {
+      player.y = p.y - player.h;
+      player.vy = 0;
+      player.onGround = true;
+    }
+  });
+
+  player.x += player.vx;
+
+  let pr2 = { x: player.x, y: player.y, w: player.w, h: player.h };
+  if (rectOverlap(pr2, { x: cabin.x, y: cabin.y, w: cabin.w, h: cabin.h })) {
+    endGame('win');
+    return;
+  }
+
+  let targetCam = player.x - W * 0.3;
+  targetCam = Math.max(0, Math.min(LEVEL_WIDTH - W, targetCam));
+  cameraX += (targetCam - cameraX) * 0.1;
+
+  let windBoost = blizzardActive ? 8 : 0;
+  snowflakes.forEach(f => {
+    f.x -= f.spd * 0.6 + windBoost;
+    f.y += f.spd + f.drift;
+    if (f.x < -10) { f.x = W + 10; f.y = Math.random() * H; }
+    if (f.y > H + 10) f.y = -10;
+  });
+
+  windParticles = windParticles.filter(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= 0.04;
+    return p.life > 0 && p.x + p.len > 0;
+  });
+
+  particles = particles.filter(p => {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.life--;
+    return p.life > 0;
+  });
+
+  updateHUD();
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+
+  if (blizzardActive) {
+    let fog = ctx.createLinearGradient(W, 0, 0, 0);
+    fog.addColorStop(0, `rgba(180,210,255,${blizzardIntensity * 0.22})`);
+    fog.addColorStop(1, 'rgba(180,210,255,0)');
+    ctx.fillStyle = fog;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  drawLevel(cameraX);
+  drawSnow(cameraX);
+  drawPlayer(cameraX);
+
+  particles.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x - cameraX, p.y, p.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${p.color},${p.life/p.maxLife})`;
+    ctx.fill();
+  });
+}
+
+function startGame() {
+  document.getElementById('overlay').style.display = 'none';
+  state = 'playing';
+
+  timeLeft       = TOTAL_TIME;
+  blizzardActive = false;
+  blizzardTimer  = 0;
+  blizzardIntensity = 0;
+  blizzardCooldown  = 0;
+  nextBlizzardIn    = 10 + Math.random() * 5;
+  cameraX           = 0;
+  windParticles     = [];
+  particles         = [];
+
+  player.x = 80;
+  player.y = GROUND_Y - player.h;
+  player.vx = 0; player.vy = 0;
+  player.onGround = false;
+  player.ducking  = false;
+  player.sheltered= false;
+  player.walkFrame= 0;
+  player.walkTick = 0;
+  player.facing   = 1;
+
+  buildLevel();
+  initSnow();
+  drawBackground();
+
+  document.getElementById('blizzard-flash').style.opacity = '0';
+
+  lastTs = performance.now();
+  animId = requestAnimationFrame(gameLoop);
+}
+
+function endGame(result, reason) {
+  state = result;
+  cancelAnimationFrame(animId);
+  document.getElementById('blizzard-flash').style.opacity = '0';
+
+  let overlay = document.getElementById('overlay');
+  overlay.style.display = 'flex';
+
+  if (result === 'win') {
+    document.getElementById('overlay-title').textContent = 'REFUGE REACHED';
+    document.getElementById('overlay-sub').textContent = 'The mountain did not take you today.';
+    document.getElementById('overlay-desc').textContent =
+      `You survived with ${Math.ceil(timeLeft)} seconds to spare.\nThe fire inside is warm.`;
+  } else {
+    let msg = reason === 'time'
+      ? 'The cold claimed your minutes.\nThe storm will not remember your name.'
+      : 'The mountain turned you back.\nRest. Try again.';
+    document.getElementById('overlay-title').textContent = 'LOST TO THE STORM';
+    document.getElementById('overlay-sub').textContent = 'The mountain does not forgive hesitation.';
+    document.getElementById('overlay-desc').textContent = msg;
+  }
+  document.getElementById('overlay-btn').textContent = 'TRY AGAIN';
+}
+
+window.addEventListener('load', () => {
+  resize();
+  drawBackground();
+});
+</script>
+</body>
+</html>
